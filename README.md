@@ -1,0 +1,144 @@
+# Office Prospector
+
+Identify boutique tax preparation offices for acquisition using IRS public data.
+
+Pulls data from IRS FOIA extracts, filters by return volume, enriches with contact info, and publishes a filterable dashboard to GitHub Pages.
+
+## Quick Start
+
+### 1. Install
+
+```bash
+cd OfficeProspector
+pip install -e .
+```
+
+### 2. Configure API Keys (optional)
+
+```bash
+cp .env.example .env
+# Edit .env and add your keys:
+#   APOLLO_API_KEY=your_key_here     (free tier: apollo.io)
+#   GOOGLE_MAPS_API_KEY=your_key     (optional)
+```
+
+### 3. Run the Pipeline
+
+```bash
+# Full pipeline — all 50 states
+python -m src.cli run
+
+# Specific states only
+python -m src.cli run --states tx,fl,ca
+
+# Individual stages
+python -m src.cli ingest          # Download + parse IRS data
+python -m src.cli filter          # Apply volume + exclusion filters
+python -m src.cli enrich          # Add contact info from PTIN, websites, Apollo
+python -m src.cli export          # Generate CSV + JSON for dashboard
+
+# Skip optional enrichment steps
+python -m src.cli enrich --skip-scraping    # Skip website scraping
+python -m src.cli enrich --skip-apollo      # Skip Apollo.io lookups
+python -m src.cli export --target csv       # CSV only, no JSON
+```
+
+### 4. View the Dashboard
+
+After running the pipeline, the dashboard files are in `docs/site/`.
+
+To serve locally:
+```bash
+cd docs/site
+python -m http.server 8000
+# Open http://localhost:8000
+```
+
+To deploy to GitHub Pages:
+1. Push the repo to GitHub (private repo, requires Pro/Team plan for Pages)
+2. Go to Settings → Pages → Source: "Deploy from a branch"
+3. Branch: `main`, Folder: `/docs`
+4. Your dashboard will be at `https://yourusername.github.io/OfficeProspector/site/`
+
+## Dashboard Features
+
+- **Search** by company name, DBA, or EFIN
+- **Filter** by state, city, return volume range
+- **Quick sort pills**: Highest Returns, Lowest Returns, Name A-Z, Fastest Growing, No Website, Hide Flagged Chains, Hide Enriched
+- **Expandable rows** — click any firm to see full details, return history, all contacts
+- **Bulk status updates** — select multiple firms and set status (Contacted, Interested, etc.)
+- **CSV export** of filtered/selected firms
+- **Shared team notes** via Google Sheets backend (see setup below)
+
+## Team Notes Setup (Google Apps Script)
+
+This lets your team share notes and status updates on firms.
+
+1. Create a new Google Sheet
+2. Go to **Extensions → Apps Script**
+3. Paste the contents of `docs/google_apps_script.js` into the editor
+4. Click **Deploy → New Deployment**
+5. Type: **Web app**, Execute as: **Me**, Access: **Anyone**
+6. Copy the deployed URL
+7. In the dashboard, click the **⚙ Settings** icon and paste the URL
+
+Your team can now update firm statuses and notes — they're saved to the shared Google Sheet.
+
+## Data Sources
+
+| Source | Type | Cost |
+|--------|------|------|
+| IRS FOIA Master Extract | Return volumes per EFIN (3 years) | Free |
+| IRS FOIA Partner Extract | Firm principals (owners, partners) | Free |
+| IRS FOIA Contact Extract | Primary contact on e-file application | Free |
+| IRS PTIN State Extracts | Individual preparers with phone/website | Free |
+| Website scraping | Emails, staff pages from firm websites | Free |
+| Apollo.io | High-level staff contacts (owner, CEO, etc.) | Free tier: 50/mo |
+
+## Pipeline Stages
+
+```
+1. INGEST   → Download IRS FOIA ZIPs + PTIN CSVs, parse into Firm objects
+2. FILTER   → Keep 100-15K returns/year, flag chains (fuzzy match), deduplicate
+3. ENRICH   → PTIN cross-reference → website scraping → Apollo.io → email guess+verify
+4. EXPORT   → CSV backup + JSON for dashboard
+```
+
+Each stage saves a checkpoint file (`data/processed/01_ingested.jsonl`, etc.) so you can re-run individual stages without starting over.
+
+## Configuration
+
+Edit `config/settings.yaml` to change:
+- IRS file URLs (when new extracts are published)
+- Return volume thresholds (default: 100-15,000)
+- Fuzzy match threshold for chain detection
+- Website scraping pages and timeouts
+- Apollo.io target titles
+- Email guess patterns
+
+Edit `config/exclusion_chains.txt` to add/remove chain names to flag.
+
+## Project Structure
+
+```
+OfficeProspector/
+├── src/
+│   ├── cli.py                 # Click CLI commands
+│   ├── pipeline.py            # Orchestrator
+│   ├── config.py              # Paths and settings loader
+│   ├── models/firm.py         # Pydantic data models
+│   ├── ingest/                # IRS data download + parsing
+│   ├── filter/                # Volume, exclusion, dedup filters
+│   ├── enrich/                # PTIN, website, Apollo, email enrichment
+│   └── export/                # CSV and JSON exporters
+├── config/                    # Settings, exclusion list
+├── data/                      # Runtime data (gitignored)
+├── docs/
+│   ├── site/                  # GitHub Pages dashboard
+│   │   ├── index.html
+│   │   ├── css/style.css
+│   │   ├── js/app.js
+│   │   └── firms.json         # Generated by pipeline
+│   └── google_apps_script.js  # Team notes backend
+└── tests/
+```

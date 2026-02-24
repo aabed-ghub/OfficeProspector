@@ -1,0 +1,75 @@
+# Large tax preparation chains and IPA 500 firms to flag
+# One firm name per line (fuzzy matching applied)
+# Lines starting with # are comments
+
+# Major consumer chains
+H&R Block
+Jackson Hewitt
+Liberty Tax
+TurboTax
+TaxAct
+TaxSlayer
+Tax Hawk
+
+# Large software/transmitter companies
+Intuit
+Drake Software
+Wolters Kluwer
+Thomson Reuters
+CCH
+
+# Big 4 / Large accounting firms
+Ernst & Young
+EY
+Deloitte
+PricewaterhouseCoopers
+PwC
+KPMG
+BDO
+RSM
+Grant Thornton
+Crowe
+CliftonLarsonAllen
+CLA
+Baker Tilly
+Marcum
+Moss Adams
+Plante Moran
+Cherry Bekaert
+Eide Bailly
+Forvis Mazars
+CBIZ
+Wipfli
+Armanino
+Sikich
+Carr Riggs & Ingram
+Aprio
+Citrin Cooperman
+Kaufman Rossin
+Berdon
+WithumSmith+Brown
+Withum
+Novogradac
+Schneider Downs
+UHY
+Rehmann
+Mazars
+PKF
+Moore Colson
+Eisner Amper
+EisnerAmper
+Friedman
+Anchin
+Weaver
+Dixon Hughes Goodman
+DHG
+
+# Payroll/tax service conglomerates
+ADP
+Paychex
+Block Advisors
+
+# Online-only / large preparers
+FreeTaxUSA
+Credit Karma Tax
+Cash App Taxes

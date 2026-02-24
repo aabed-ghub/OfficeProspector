@@ -1,0 +1,25 @@
+# Runtime data
+data/raw/
+data/processed/
+data/cache/
+
+# Environment
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
