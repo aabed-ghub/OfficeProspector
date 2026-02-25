@@ -3,6 +3,9 @@ data/raw/
 data/processed/
 data/cache/
 
+# Dashboard data (served via GitHub Releases)
+docs/site/firms.json
+
 # Environment
 .env
 __pycache__/

@@ -43,12 +43,13 @@ def filter(ctx: click.Context) -> None:
 @cli.command()
 @click.option("--skip-scraping", is_flag=True, help="Skip website scraping step.")
 @click.option("--skip-apollo", is_flag=True, help="Skip Apollo.io enrichment.")
+@click.option("--skip-email", is_flag=True, help="Skip email guessing/verification step.")
 @click.pass_context
-def enrich(ctx: click.Context, skip_scraping: bool, skip_apollo: bool) -> None:
+def enrich(ctx: click.Context, skip_scraping: bool, skip_apollo: bool, skip_email: bool) -> None:
     """Enrich firms with contact info, websites, and emails."""
     from src.pipeline import run_enrich
 
-    run_enrich(ctx.obj["settings"], skip_scraping=skip_scraping, skip_apollo=skip_apollo)
+    run_enrich(ctx.obj["settings"], skip_scraping=skip_scraping, skip_apollo=skip_apollo, skip_email=skip_email)
 
 
 @cli.command()

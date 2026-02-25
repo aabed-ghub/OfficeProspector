@@ -43,10 +43,22 @@
     applyFilter();
   }
 
+  // Data URL: try GitHub Release asset first, fall back to local file
+  const DATA_URLS = [
+    "https://github.com/aabed-ghub/OfficeProspector/releases/latest/download/firms.json",
+    "firms.json"
+  ];
+
   async function loadData() {
     try {
-      const resp = await fetch("firms.json");
-      if (!resp.ok) throw new Error("Failed to load firms.json");
+      let resp;
+      for (const url of DATA_URLS) {
+        try {
+          resp = await fetch(url);
+          if (resp.ok) break;
+        } catch (_) { /* try next */ }
+      }
+      if (!resp || !resp.ok) throw new Error("Failed to load firms.json");
       const data = await resp.json();
       allFirms = data.firms || [];
       updateStats(data);

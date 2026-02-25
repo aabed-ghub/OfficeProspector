@@ -108,7 +108,7 @@ def run_filter(settings: dict) -> list[Firm]:
     return firms
 
 
-def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = False) -> list[Firm]:
+def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = False, skip_email: bool = False) -> list[Firm]:
     """Stage 3: Enrich with PTIN, website scraping, Apollo."""
     click.echo("\n" + "=" * 60)
     click.echo("STAGE 3: ENRICHMENT")
@@ -139,9 +139,12 @@ def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = 
         click.echo("\n  --- Skipping Apollo.io ---")
 
     # Stage 3d: Email guess + verify
-    click.echo("\n  --- Email Verification ---")
-    from src.enrich.email_guesser import guess_and_verify_emails
-    firms = guess_and_verify_emails(firms, settings)
+    if not skip_email:
+        click.echo("\n  --- Email Verification ---")
+        from src.enrich.email_guesser import guess_and_verify_emails
+        firms = guess_and_verify_emails(firms, settings)
+    else:
+        click.echo("\n  --- Skipping email verification ---")
 
     # Mark enrichment status
     for firm in firms:
