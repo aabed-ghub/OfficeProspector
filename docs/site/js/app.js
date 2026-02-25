@@ -15,6 +15,7 @@
   let notes = {};  // { efin: { status: "", notes: "" } }
   let hideChains = false;
   let hideEnriched = false;
+  let noWebsiteOnly = false;
   let gasUrl = "";  // Google Apps Script URL
 
   // ===== DOM REFS =====
@@ -121,6 +122,7 @@
     filteredFirms = allFirms.filter((f) => {
       if (hideChains && f.flaggedChain) return false;
       if (hideEnriched && f.isEnriched) return false;
+      if (noWebsiteOnly && f.website) return false;
       if (query && !f.firmName.toLowerCase().includes(query) &&
           !(f.dba || "").toLowerCase().includes(query) &&
           !f.efin.includes(query)) return false;
@@ -637,6 +639,7 @@
       sortDir = "desc";
       hideChains = false;
       hideEnriched = false;
+      noWebsiteOnly = false;
       sortBySelect.value = sortCol;
       sortDirSelect.value = sortDir;
       $$(".pill.active").forEach((p) => p.classList.remove("active"));
@@ -646,6 +649,7 @@
     }
 
     // Sort pills (mutually exclusive)
+    noWebsiteOnly = false;  // Reset whenever any sort pill is clicked
     $$(".quick-filters .pill:not(.toggle-pill):not(.pill-clear)").forEach((p) => p.classList.remove("active"));
     pill.classList.add("active");
 
@@ -659,9 +663,8 @@
       case "growth":
         sortCol = "yoyGrowth"; sortDir = "desc"; break;
       case "nowebsite":
-        sortCol = "latestReturns"; sortDir = "desc";
-        // Apply a special filter for no-website firms
-        break;
+        noWebsiteOnly = true;
+        sortCol = "latestReturns"; sortDir = "desc"; break;
     }
     sortBySelect.value = sortCol;
     sortDirSelect.value = sortDir;

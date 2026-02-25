@@ -6,6 +6,9 @@ on:
     paths:
       - "docs/site/**"
 
+  release:
+    types: [published]
+
   workflow_dispatch:
 
 permissions:
@@ -26,6 +29,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download firms.json from latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Downloading firms.json from latest release..."
+          gh release download --pattern "firms.json" --dir docs/site --clobber || {
+            echo "WARNING: No firms.json found in any release. Dashboard will load without data."
+            echo "To fix: create a release and upload firms.json as an asset."
+          }
+          ls -lh docs/site/firms.json 2>/dev/null || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
