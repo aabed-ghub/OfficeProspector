@@ -23,8 +23,9 @@ def _build_ptin_index(preparers: list[PtinPreparer]) -> dict[str, list[PtinPrepa
 @dataclass
 class _PrepMatch:
     preparer: PtinPreparer
-    name_score: int   # Best fuzzy score on firm-name vs preparer DBA
-    addr_score: int   # Fuzzy score on address
+    name_score: int    # Best fuzzy score on firm-name vs preparer DBA (token_set_ratio, generous)
+    name_strict: int   # Stricter score (token_sort_ratio, penalizes extra/missing tokens)
+    addr_score: int    # Fuzzy score on address
 
 
 def _match_firm_to_preparers(
@@ -46,10 +47,18 @@ def _match_firm_to_preparers(
 
         # Match on DBA/firm name
         name_score = 0
+        name_strict = 0
         if dba_upper:
             name_score = max(
                 fuzz.token_set_ratio(firm_name_upper, dba_upper),
                 fuzz.token_set_ratio(firm_dba_upper, dba_upper) if firm_dba_upper else 0,
+            )
+            # token_sort_ratio is stricter: sorts tokens alphabetically and
+            # does a straight comparison, so shared generic tokens like "CPA"
+            # or "TAX SERVICE" don't inflate the score.
+            name_strict = max(
+                fuzz.token_sort_ratio(firm_name_upper, dba_upper),
+                fuzz.token_sort_ratio(firm_dba_upper, dba_upper) if firm_dba_upper else 0,
             )
 
         # Also match on address line 1 if names don't match well
@@ -66,7 +75,7 @@ def _match_firm_to_preparers(
             overall = max(overall, addr_score)
 
         if overall >= threshold:
-            matches.append(_PrepMatch(preparer, name_score, addr_score))
+            matches.append(_PrepMatch(preparer, name_score, name_strict, addr_score))
 
     return matches
 
@@ -137,9 +146,11 @@ def enrich_with_ptin(firms: list[Firm], settings: dict, only_states: set[str] | 
 
         for m in matches:
             # Only assign website from high-confidence NAME matches.
-            # Address-only matches (low name score) often link unrelated
-            # firms that share a building, so their websites are wrong.
-            if m.preparer.website and not firm.website and m.name_score >= 88:
+            # Require BOTH token_set_ratio >= 88 AND token_sort_ratio >= 80.
+            # token_set_ratio alone inflates on shared generic tokens like
+            # "CPA", "TAX SERVICE" -- token_sort_ratio catches these.
+            if (m.preparer.website and not firm.website
+                    and m.name_score >= 88 and m.name_strict >= 80):
                 firm.website = m.preparer.website
 
             # Add phone if firm doesn't have one (requires decent name match)

@@ -36,4 +36,5 @@ def load_exclusion_chains() -> list[str]:
 # API keys from environment
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 APOLLO_API_KEY = os.getenv("APOLLO_API_KEY", "")
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 GOOGLE_APPS_SCRIPT_URL = os.getenv("GOOGLE_APPS_SCRIPT_URL", "")

@@ -131,7 +131,12 @@ def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = 
     firm_states = {f.state.upper() for f in firms if f.state} if limit else None
     firms = enrich_with_ptin(firms, settings, only_states=firm_states)
 
-    # Stage 3b: Website scraping (free)
+    # Stage 3b: Google search for websites (Serper.dev)
+    click.echo("\n  --- Google Search (Serper.dev) ---")
+    from src.enrich.serper_search import enrich_with_serper
+    firms = enrich_with_serper(firms, settings)
+
+    # Stage 3c: Website scraping (free)
     if not skip_scraping:
         click.echo("\n  --- Website Scraping ---")
         from src.enrich.website_scraper import enrich_with_websites
@@ -139,7 +144,7 @@ def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = 
     else:
         click.echo("\n  --- Skipping website scraping ---")
 
-    # Stage 3c: Apollo.io (free tier)
+    # Stage 3d: Apollo.io (free tier)
     if not skip_apollo:
         click.echo("\n  --- Apollo.io Enrichment ---")
         from src.enrich.apollo_enrichment import enrich_with_apollo
@@ -147,7 +152,7 @@ def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = 
     else:
         click.echo("\n  --- Skipping Apollo.io ---")
 
-    # Stage 3d: Email guess + verify
+    # Stage 3e: Email guess + verify
     if not skip_email:
         click.echo("\n  --- Email Verification ---")
         from src.enrich.email_guesser import guess_and_verify_emails
