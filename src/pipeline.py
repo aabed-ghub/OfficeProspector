@@ -69,7 +69,7 @@ def run_ingest(settings: dict) -> list[Firm]:
     return firms
 
 
-def run_filter(settings: dict) -> list[Firm]:
+def run_filter(settings: dict, limit: int | None = None) -> list[Firm]:
     """Stage 2: Apply volume, exclusion, and deduplication filters."""
     click.echo("\n" + "=" * 60)
     click.echo("STAGE 2: FILTERING")
@@ -77,6 +77,10 @@ def run_filter(settings: dict) -> list[Firm]:
 
     firms = _load_firms("01_ingested.jsonl")
     click.echo(f"  Loaded {len(firms)} ingested firms")
+
+    if limit:
+        firms = firms[:limit]
+        click.echo(f"  --limit {limit}: sliced to {len(firms)} firms")
 
     from src.filter.volume_filter import apply_volume_filter
     from src.filter.exclusion_filter import apply_exclusion_filter
@@ -108,7 +112,7 @@ def run_filter(settings: dict) -> list[Firm]:
     return firms
 
 
-def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = False, skip_email: bool = False) -> list[Firm]:
+def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = False, skip_email: bool = False, limit: int | None = None) -> list[Firm]:
     """Stage 3: Enrich with PTIN, website scraping, Apollo."""
     click.echo("\n" + "=" * 60)
     click.echo("STAGE 3: ENRICHMENT")
@@ -117,10 +121,15 @@ def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = 
     firms = _load_firms("02_filtered.jsonl")
     click.echo(f"  Loaded {len(firms)} filtered firms")
 
+    if limit:
+        firms = firms[:limit]
+        click.echo(f"  --limit {limit}: sliced to {len(firms)} firms")
+
     # Stage 3a: PTIN cross-reference (free)
     click.echo("\n  --- PTIN Cross-Reference ---")
     from src.enrich.ptin_crossref import enrich_with_ptin
-    firms = enrich_with_ptin(firms, settings)
+    firm_states = {f.state.upper() for f in firms if f.state} if limit else None
+    firms = enrich_with_ptin(firms, settings, only_states=firm_states)
 
     # Stage 3b: Website scraping (free)
     if not skip_scraping:
@@ -160,7 +169,7 @@ def run_enrich(settings: dict, skip_scraping: bool = False, skip_apollo: bool = 
     return firms
 
 
-def run_export(settings: dict, target: str = "all") -> None:
+def run_export(settings: dict, target: str = "all", limit: int | None = None) -> None:
     """Stage 4: Export to CSV and/or JSON."""
     click.echo("\n" + "=" * 60)
     click.echo("STAGE 4: EXPORT")
@@ -168,6 +177,10 @@ def run_export(settings: dict, target: str = "all") -> None:
 
     firms = _load_firms("03_enriched.jsonl")
     click.echo(f"  Loaded {len(firms)} enriched firms")
+
+    if limit:
+        firms = firms[:limit]
+        click.echo(f"  --limit {limit}: sliced to {len(firms)} firms")
 
     if target in ("csv", "all"):
         from src.export.csv_exporter import export_csv
@@ -180,12 +193,14 @@ def run_export(settings: dict, target: str = "all") -> None:
     click.echo("\n  Export complete!")
 
 
-def run_pipeline(settings: dict, state_filter: list[str] | None = None) -> None:
+def run_pipeline(settings: dict, state_filter: list[str] | None = None, limit: int | None = None) -> None:
     """Run the full pipeline end-to-end."""
     click.echo("Office Prospector - Full Pipeline Run")
     click.echo(f"Date: {date.today().isoformat()}")
     if state_filter:
         click.echo(f"State filter: {', '.join(state_filter)}")
+    if limit:
+        click.echo(f"Limit: {limit} firms")
     click.echo()
 
     firms = run_ingest(settings)
@@ -193,10 +208,16 @@ def run_pipeline(settings: dict, state_filter: list[str] | None = None) -> None:
     if state_filter:
         firms = [f for f in firms if f.state.upper() in state_filter]
         click.echo(f"\n  Filtered to {len(firms)} firms in {', '.join(state_filter)}")
+
+    if limit:
+        firms = firms[:limit]
+        click.echo(f"\n  --limit {limit}: sliced to {len(firms)} firms")
+
+    if state_filter or limit:
         _save_firms(firms, "01_ingested.jsonl")
 
     run_filter(settings)
-    run_enrich(settings)
+    run_enrich(settings, limit=limit)
     run_export(settings)
 
     click.echo("\n" + "=" * 60)

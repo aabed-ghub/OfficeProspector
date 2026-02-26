@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import click
+from dataclasses import dataclass
 from thefuzz import fuzz
 from tqdm import tqdm
 
@@ -19,12 +20,23 @@ def _build_ptin_index(preparers: list[PtinPreparer]) -> dict[str, list[PtinPrepa
     return index
 
 
+@dataclass
+class _PrepMatch:
+    preparer: PtinPreparer
+    name_score: int   # Best fuzzy score on firm-name vs preparer DBA
+    addr_score: int   # Fuzzy score on address
+
+
 def _match_firm_to_preparers(
     firm: Firm,
     candidates: list[PtinPreparer],
     threshold: int = 75,
-) -> list[PtinPreparer]:
-    """Match a firm to PTIN preparers by name/address similarity."""
+) -> list[_PrepMatch]:
+    """Match a firm to PTIN preparers by name/address similarity.
+
+    Returns matches with scores so callers can apply different thresholds
+    for contacts (lower risk) vs website assignment (higher risk).
+    """
     matches = []
     firm_name_upper = firm.firm_name.upper()
     firm_dba_upper = firm.dba.upper() if firm.dba else ""
@@ -33,33 +45,61 @@ def _match_firm_to_preparers(
         dba_upper = preparer.dba.upper() if preparer.dba else ""
 
         # Match on DBA/firm name
-        score = 0
+        name_score = 0
         if dba_upper:
-            score = max(
+            name_score = max(
                 fuzz.token_set_ratio(firm_name_upper, dba_upper),
                 fuzz.token_set_ratio(firm_dba_upper, dba_upper) if firm_dba_upper else 0,
             )
 
         # Also match on address line 1 if names don't match well
-        if score < threshold and preparer.address_line1:
+        addr_score = 0
+        if preparer.address_line1:
             addr_score = fuzz.token_set_ratio(
                 firm.street_address.upper(),
                 preparer.address_line1.upper(),
             )
-            if addr_score > 85:
-                score = max(score, addr_score)
 
-        if score >= threshold:
-            matches.append(preparer)
+        # Accept if name score meets threshold, or address is very close
+        overall = name_score
+        if overall < threshold and addr_score > 85:
+            overall = max(overall, addr_score)
+
+        if overall >= threshold:
+            matches.append(_PrepMatch(preparer, name_score, addr_score))
 
     return matches
 
 
-def enrich_with_ptin(firms: list[Firm], settings: dict) -> list[Firm]:
+_STATE_ABBR_TO_NAME: dict[str, str] = {
+    "AL": "alabama", "AK": "alaska", "AZ": "arizona", "AR": "arkansas",
+    "CA": "california", "CO": "colorado", "CT": "connecticut", "DE": "delaware",
+    "FL": "florida", "GA": "georgia", "HI": "hawaii", "ID": "idaho",
+    "IL": "illinois", "IN": "indiana", "IA": "iowa", "KS": "kansas",
+    "KY": "kentucky", "LA": "louisiana", "ME": "maine", "MD": "maryland",
+    "MA": "massachusetts", "MI": "michigan", "MN": "minnesota", "MS": "mississippi",
+    "MO": "missouri", "MT": "montana", "NE": "nebraska", "NV": "nevada",
+    "NH": "new-hampshire", "NJ": "new-jersey", "NM": "new-mexico", "NY": "new-york",
+    "NC": "north-carolina", "ND": "north-dakota", "OH": "ohio", "OK": "oklahoma",
+    "OR": "oregon", "PA": "pennsylvania", "RI": "rhode-island", "SC": "south-carolina",
+    "SD": "south-dakota", "TN": "tennessee", "TX": "texas", "UT": "utah",
+    "VT": "vermont", "VA": "virginia", "WA": "washington", "WV": "west-virginia",
+    "WI": "wisconsin", "WY": "wyoming", "DC": "district-of-columbia",
+}
+
+
+def enrich_with_ptin(firms: list[Firm], settings: dict, only_states: set[str] | None = None) -> list[Firm]:
     """Cross-reference firms with PTIN preparer data to add contacts and metadata."""
     # Download PTIN state files
     state_names = settings.get("states", [])
     base_url = settings["irs"]["ptin_base_url"]
+
+    # When only_states is provided (e.g. from --limit), download only the states
+    # that appear in the firm list instead of all 50+
+    if only_states:
+        needed_names = {_STATE_ABBR_TO_NAME[abbr] for abbr in only_states if abbr in _STATE_ABBR_TO_NAME}
+        state_names = [s for s in state_names if s in needed_names]
+        click.echo(f"  Limiting PTIN downloads to {len(state_names)} states: {', '.join(sorted(only_states))}")
 
     click.echo("  Downloading PTIN state files...")
     downloaded = 0
@@ -69,8 +109,8 @@ def enrich_with_ptin(firms: list[Firm], settings: dict) -> list[Firm]:
             downloaded += 1
     click.echo(f"  Downloaded {downloaded}/{len(state_names)} PTIN files")
 
-    # Load all PTIN data
-    preparers = load_all_ptin_data()
+    # Load PTIN data (only for needed states if limited)
+    preparers = load_all_ptin_data(state_names if only_states else None)
     if not preparers:
         click.echo("  No PTIN data available, skipping cross-reference.")
         return firms
@@ -95,23 +135,25 @@ def enrich_with_ptin(firms: list[Firm], settings: dict) -> list[Firm]:
         firm.preparer_count = len(matches)
         enriched_count += 1
 
-        for preparer in matches:
-            # Add website if firm doesn't have one
-            if preparer.website and not firm.website:
-                firm.website = preparer.website
+        for m in matches:
+            # Only assign website from high-confidence NAME matches.
+            # Address-only matches (low name score) often link unrelated
+            # firms that share a building, so their websites are wrong.
+            if m.preparer.website and not firm.website and m.name_score >= 88:
+                firm.website = m.preparer.website
 
-            # Add phone if firm doesn't have one
-            if preparer.phone and not firm.phone:
-                firm.phone = preparer.phone
+            # Add phone if firm doesn't have one (requires decent name match)
+            if m.preparer.phone and not firm.phone and m.name_score >= 75:
+                firm.phone = m.preparer.phone
 
-            # Add as contact
+            # Add as contact (any match quality is fine for listing)
             existing_names = {c.name.lower() for c in firm.contacts}
-            if preparer.full_name.lower() not in existing_names:
-                title = preparer.profession or "Tax Preparer"
+            if m.preparer.full_name.lower() not in existing_names:
+                title = m.preparer.profession or "Tax Preparer"
                 contact = Contact(
-                    name=preparer.full_name,
+                    name=m.preparer.full_name,
                     title=title,
-                    phone=preparer.phone,
+                    phone=m.preparer.phone,
                     source=EnrichmentSource.PTIN,
                 )
                 firm.contacts.append(contact)
