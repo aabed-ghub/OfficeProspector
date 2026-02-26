@@ -14,13 +14,17 @@ def cli(ctx: click.Context) -> None:
 @cli.command()
 @click.option("--states", default=None, help="Comma-separated state codes (e.g., tx,fl,ca). Default: all states.")
 @click.option("--limit", default=None, type=int, help="Process only the first N firms (for fast test runs).")
+@click.option("--skip-scraping", is_flag=True, help="Skip website scraping step.")
+@click.option("--skip-apollo", is_flag=True, help="Skip Apollo.io enrichment.")
+@click.option("--skip-email", is_flag=True, help="Skip email guessing/verification step.")
 @click.pass_context
-def run(ctx: click.Context, states: str | None, limit: int | None) -> None:
+def run(ctx: click.Context, states: str | None, limit: int | None, skip_scraping: bool, skip_apollo: bool, skip_email: bool) -> None:
     """Run the full pipeline: ingest, filter, enrich, export."""
     from src.pipeline import run_pipeline
 
     state_list = [s.strip().upper() for s in states.split(",")] if states else None
-    run_pipeline(ctx.obj["settings"], state_filter=state_list, limit=limit)
+    run_pipeline(ctx.obj["settings"], state_filter=state_list, limit=limit,
+                 skip_scraping=skip_scraping, skip_apollo=skip_apollo, skip_email=skip_email)
 
 
 @cli.command()

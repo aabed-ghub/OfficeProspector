@@ -193,7 +193,8 @@ def run_export(settings: dict, target: str = "all", limit: int | None = None) ->
     click.echo("\n  Export complete!")
 
 
-def run_pipeline(settings: dict, state_filter: list[str] | None = None, limit: int | None = None) -> None:
+def run_pipeline(settings: dict, state_filter: list[str] | None = None, limit: int | None = None,
+                  skip_scraping: bool = False, skip_apollo: bool = False, skip_email: bool = False) -> None:
     """Run the full pipeline end-to-end."""
     click.echo("Office Prospector - Full Pipeline Run")
     click.echo(f"Date: {date.today().isoformat()}")
@@ -217,7 +218,7 @@ def run_pipeline(settings: dict, state_filter: list[str] | None = None, limit: i
         _save_firms(firms, "01_ingested.jsonl")
 
     run_filter(settings)
-    run_enrich(settings, limit=limit)
+    run_enrich(settings, skip_scraping=skip_scraping, skip_apollo=skip_apollo, skip_email=skip_email, limit=limit)
     run_export(settings)
 
     click.echo("\n" + "=" * 60)
